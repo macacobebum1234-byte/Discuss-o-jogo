@@ -191,8 +191,8 @@ body.ultra-gold #question{color:#fff0ad!important;text-shadow:0 0 12px rgba(245,
 <div class="god-control">
 <label for="absurdChance">Chance das situações absurdas</label>
 <select id="absurdChance">
-<option value="0.01">Padrão — extremamente rara</option>
-<option value="0.05">Baixa</option>
+<option selected value="0.0001">Padrão — absurdamente rara</option>
+<option value="0.01">Baixa</option>
 <option value="0.25">Média</option>
 <option value="1">Alta</option>
 </select>
@@ -598,9 +598,8 @@ function isAbsurdQuestion(q){
 }
 function buildWeightedDeck(){
   const ids=[...Array(questions.length).keys()];
-  // As 10 situações zuadas ficam raras: peso 0.22.
-  // As 5 anteriores + 5 que já existiam no banco são detectadas pelos marcadores
-  // abaixo, sem alterar a estrutura das situações normais.
+  // Mantido para compatibilidade com versões anteriores do jogo.
+  // A seleção efetiva das situações raras é feita por weightedPick().
   const rareMarkers=[
     "Seu amigo pegou seu lanche sem pedir",
     "Seu amigo está usando seu celular sem autorização",
@@ -639,7 +638,7 @@ questions.forEach((q,i)=>{
 const ultraRareMarkers=["Seu amigo pegou seu último pedaço de pizza", "Seu amigo venceu você por um ponto", "Seu amigo pegou sua caneta favorita", "Seu amigo chegou atrasado", "Seu amigo ganhou seu lugar no sofá"];
 const ultraRareQuestions=new Set();
 questions.forEach((q,i)=>{if(ultraRareMarkers.some(marker=>q.q&&q.q.includes(marker)))ultraRareQuestions.add(i);});
-let absurdChance=0.01;
+let absurdChance=0.0001;
 let godMode=false;
 let scoreMultiplier=1;
 let forceAbsurdNext=false;
@@ -685,7 +684,8 @@ function setupGodMode(){
   if(chance)chance.addEventListener("change",()=>{
     absurdChance=Number(chance.value);
     const labels={
-      "0.01":"Padrão: extremamente rara",
+      "0.0001":"Padrão: absurdamente rara",
+      "0.01":"Baixa",
       "0.05":"Baixa",
       "0.25":"Média",
       "1":"Alta"
@@ -722,15 +722,19 @@ function setupGodMode(){
 }
 
 function weightedPick(pool){
-  const rareWeight=godMode?absurdChance:0.01;
-  const weights=pool.map(i=>ultraRareQuestions.has(i)?rareWeight:1);
-  const total=weights.reduce((a,b)=>a+b,0);
-  let r=Math.random()*total;
-  for(let n=0;n<pool.length;n++){
-    r-=weights[n];
-    if(r<=0)return pool[n];
+  // Cada situação rara tem 0,0001% de chance por sorteio.
+  // Se houver várias raras disponíveis, a chance total é distribuída igualmente entre elas.
+  const rareIds=pool.filter(i=>ultraRareQuestions.has(i));
+  const normalIds=pool.filter(i=>!ultraRareQuestions.has(i));
+  const rareChance=godMode ? absurdChance/100 : 0.000001; // 0,0001% no modo normal
+
+  if(rareIds.length && Math.random() < rareChance * rareIds.length){
+    return rareIds[Math.floor(Math.random()*rareIds.length)];
   }
-  return pool[pool.length-1];
+  if(normalIds.length){
+    return normalIds[Math.floor(Math.random()*normalIds.length)];
+  }
+  return pool[Math.floor(Math.random()*pool.length)];
 }
 
 function startGame(){
